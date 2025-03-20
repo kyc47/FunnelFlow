@@ -22,93 +22,86 @@ if 'stages' not in st.session_state:
     st.session_state['stages'] = ["방문자", "회원가입"]
 if 'values' not in st.session_state:
     st.session_state['values'] = {stage: 0 for stage in st.session_state['stages']}
+if 'new_stage_count' not in st.session_state:
+    st.session_state['new_stage_count'] = len(st.session_state['stages'])
 
-# 퍼널 단계 이름 수정 기능
-st.subheader("퍼널 단계 이름 수정")
+# 퍼널 단계 이름 및 개수 수정 UI
+st.subheader("퍼널 단계 설정")
 updated_stages = []
-for stage in st.session_state['stages']:
-    new_name = st.text_input(f"{stage}의 새로운 이름", value=stage, key=f"edit-{stage}")
-    updated_stages.append(new_name)
+col1, col2 = st.columns([0.7, 0.3])
 
-# 버튼을 가로(row)로 배치 (10px 간격 조정)
-col1, col2 = st.columns([0.48, 0.48])
-
-# 버튼 HTML을 직접 삽입하여 개별 스타일 적용
 with col1:
-    st.markdown("""
-        <style>
-        .update-btn {
-            background-color: #007BFF; color: white; padding: 10px 20px; 
-            border: none; border-radius: 5px; font-size: 16px;
-        }
-        .update-btn:hover { background-color: #0056b3; }
-        </style>
-        <button class="update-btn" onclick="window.location.reload();">단계 이름 업데이트</button>
-    """, unsafe_allow_html=True)
-    if st.session_state.get('update_clicked'):
-        st.session_state['stages'] = updated_stages
-        st.session_state['values'] = {stage: st.session_state['values'].get(stage, 0) for stage in updated_stages}
+    for i, stage in enumerate(st.session_state['stages']):
+        new_name = st.text_input(f"{stage}의 새로운 이름", value=stage, key=f"edit-{i}")
+        updated_stages.append(new_name)
 
 with col2:
-    st.markdown("""
-        <style>
-        .add-btn {
-            background-color: #28A745; color: white; padding: 10px 20px; 
-            border: none; border-radius: 5px; font-size: 16px;
-        }
-        .add-btn:hover { background-color: #1e7e34; }
-        </style>
-        <button class="add-btn" onclick="window.location.reload();">퍼널 단계 추가</button>
-    """, unsafe_allow_html=True)
-    if st.session_state.get('add_clicked'):
-        new_stage = f"단계 {len(st.session_state['stages']) + 1}"
+    for i in range(len(st.session_state['stages'])):
+        st.session_state['values'][st.session_state['stages'][i]] = st.number_input(
+            "인원 수", min_value=0, step=1, key=f"value-{i}")
+
+# 버튼 스타일 변경을 위한 CSS 삽입
+st.markdown("""
+    <style>
+    div.stButton > button:first-child {
+        background-color: #28A745; color: white; width: 100%; padding: 8px; border-radius: 5px;
+    }
+    div.stButton > button:nth-child(2) {
+        background-color: #DC3545; color: white; width: 100%; padding: 8px; border-radius: 5px;
+    }
+    div.stButton > button:nth-child(3) {
+        background-color: #FFC107; color: black; width: 100%; padding: 8px; border-radius: 5px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# 버튼을 가로(row)로 정렬
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("퍼널 단계 추가"):
+        st.session_state['new_stage_count'] += 1
+        new_stage = f"단계 {st.session_state['new_stage_count']}"
         st.session_state['stages'].append(new_stage)
         st.session_state['values'][new_stage] = 0
 
-# 퍼널 데이터 입력 UI
-st.subheader("퍼널 단계별 인원 입력")
-for stage in st.session_state['stages']:
-    st.session_state['values'][stage] = st.number_input(
-        f"{stage} 단계 인원 수", min_value=0, step=1, key=f"{stage}"
-    )
+with col2:
+    if st.button("퍼널 단계 삭제"):
+        if len(st.session_state['stages']) > 2:
+            removed_stage = st.session_state['stages'].pop()
+            st.session_state['values'].pop(removed_stage, None)
+        else:
+            st.warning("최소 2개 이상의 퍼널 단계가 필요합니다.")
 
-# 퍼널 차트 시각화 함수 (세로 차트, 비율 기준, 색상 변경)
+# 퍼널 차트 시각화 함수 (실제 인원 기준 바 차트 + 바 위에 전환율 표기)
 def visualize_funnel():
+    
     if len(st.session_state['stages']) < 2:
         st.warning("최소 2개 이상의 퍼널 단계를 추가해주세요.")
         return
     
+    # 단계 이름 업데이트
+    st.session_state['stages'] = updated_stages
+    st.session_state['values'] = {stage: st.session_state['values'].get(stage, 0) for stage in updated_stages}
+    
     fig, ax = plt.subplots(figsize=(8, 6))
     stages = st.session_state['stages']
-    values = list(st.session_state['values'].values())
+    values = [st.session_state['values'][stage] for stage in stages]
     
-    # 비율(%) 계산
-    max_value = max(values) if max(values) > 0 else 1
-    percentages = [(v / max_value) * 100 for v in values]
+    # 왼쪽 단계 대비 전환율(%) 계산
+    conversion_rates = [100] + [((values[i] / values[i-1]) * 100) if values[i-1] > 0 else 0 for i in range(1, len(values))]
     
-    x_labels = [f"STEP {i+1} [{stage}]\n{values[i]}명" for i, stage in enumerate(stages)]
-    
-    ax.bar(x_labels, percentages, color='#FF5733')  # 색상 변경
-    ax.set_ylabel("비율 (%)")
+    ax.bar(stages, values, color='#FF5733')  # 실제 인원 수 기준 바 차트
+    ax.set_ylabel("인원 수")
     ax.set_xlabel("퍼널 단계")
-    ax.set_title("퍼널 분석 차트", color='#333399')
+    ax.set_title("Funnel Chart", color='#333399')
     
-    for i, v in enumerate(percentages):
-        ax.text(i, v + 2, f"{v:.1f}%", ha='center', fontsize=12, color='black')
+    for i, v in enumerate(values):
+        ax.text(i, v + 2, f"{v}명 ({conversion_rates[i]:.1f}%)", ha='center', fontsize=12, color='black')
     
     st.pyplot(fig)
 
 # 퍼널 차트 시각화 버튼 (노란색으로 변경)
-st.markdown("""
-    <style>
-    .visualize-btn {
-        background-color: #FFC107; color: black; padding: 10px 20px; 
-        border: none; border-radius: 5px; font-size: 16px;
-    }
-    .visualize-btn:hover { background-color: #e0a800; }
-    </style>
-    <button class="visualize-btn" onclick="window.location.reload();">퍼널 차트 시각화</button>
-""", unsafe_allow_html=True)
-
-if st.session_state.get('visualize_clicked'):
+if st.button("퍼널 차트 시각화"):
+    st.subheader("퍼널 시각화")
     visualize_funnel()
