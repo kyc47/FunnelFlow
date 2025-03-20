@@ -4,16 +4,31 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import uuid
 import platform
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import platform
 
-# 한글 폰트 설정 (Windows와 Mac/Linux 호환)
-if platform.system() == "Windows":
-    plt.rcParams['font.family'] = 'Malgun Gothic'
-elif platform.system() == "Darwin":
-    plt.rcParams['font.family'] = 'AppleGothic'
+# 한글 폰트 설정 (Windows, Mac, Linux 자동 감지)
+def get_font():
+    system_name = platform.system()
+    if system_name == "Windows":
+        return "Malgun Gothic"
+    elif system_name == "Darwin":
+        return "AppleGothic"
+    else:
+        return "NanumGothic"
+
+# 폰트 적용
+font_path = fm.findSystemFonts(fontpaths=None, fontext='ttf')  # 시스템 폰트 검색
+valid_fonts = [f for f in font_path if "Gothic" in f or "Malgun" in f or "Apple" in f]
+
+if valid_fonts:
+    font_prop = fm.FontProperties(fname=valid_fonts[0])  # 가장 첫 번째 찾은 폰트 적용
+    plt.rcParams['font.family'] = font_prop.get_name()
 else:
-    plt.rcParams['font.family'] = 'NanumGothic'
-plt.rcParams['axes.unicode_minus'] = False  # 마이너스 기호 깨짐 방지
+    plt.rcParams['font.family'] = get_font()
 
+plt.rcParams['axes.unicode_minus'] = False  # 마이너스 기호 깨짐 방지
 # Streamlit 앱 제목
 st.title("맞춤형 이탈률 분석 도구")
 
